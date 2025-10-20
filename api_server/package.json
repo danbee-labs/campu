@@ -1,0 +1,9 @@
+{
+  "name": "my-express",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "PORT=3005 node server.js",
+    "dev": "PORT=3005 nodemon server.js"
+  }
+}
