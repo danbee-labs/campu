@@ -62,6 +62,7 @@ const SearchBar = ({ state }: { state?: string }) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
+  const [isKeyboardNav, setIsKeyboardNav] = useState(false);
 
   // 일정 초기화
   const resetCalendar = () => {
@@ -92,11 +93,11 @@ const SearchBar = ({ state }: { state?: string }) => {
     dispatch(setKeyword(value));
   };
 
-  const handleKeyPress = (e: KeyboardEvent) => {
-    if (e.key === "Enter") {
-      goToSearchPage();
-    }
-  };
+  // const handleKeyPress = (e: KeyboardEvent) => {
+  //   if (e.key === "Enter") {
+  //     goToSearchPage();
+  //   }
+  // };
 
   // Enter 키 감지
   // useEffect(() => {
@@ -111,30 +112,38 @@ const SearchBar = ({ state }: { state?: string }) => {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!open || results.length === 0) {
-      if (e.key === "Enter") {
-        goToSearchPage();
+    // 드롭다운이 열려 있고 결과가 있을 때만 키보드 네비
+    if (open && results.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setIsKeyboardNav(true);
+        setActiveIndex((prev) => (prev + 1) % results.length);
+        return;
       }
-      return;
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setIsKeyboardNav(true);
+        setActiveIndex((prev) => (prev - 1 + results.length) % results.length);
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (activeIndex >= 0 && results[activeIndex]) {
+          const selected = results[activeIndex];
+          dispatch(setKeyword(selected.name));
+          setOpen(false);
+          return;
+        }
+      }
+      if (e.key === "Escape") {
+        setOpen(false);
+        return;
+      }
     }
 
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setActiveIndex((prev) => (prev + 1) % results.length);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActiveIndex((prev) => (prev - 1 + results.length) % results.length);
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      if (activeIndex >= 0 && results[activeIndex]) {
-        const selected = results[activeIndex];
-        dispatch(setKeyword(selected.name));
-        setOpen(false);
-      } else {
-        goToSearchPage();
-      }
-    } else if (e.key === "Escape") {
-      setOpen(false);
+    // 드롭다운이 닫혀 있거나 결과가 없을 때 Enter는 기본 검색
+    if (e.key === "Enter") {
+      goToSearchPage();
     }
   };
 
@@ -299,6 +308,8 @@ const SearchBar = ({ state }: { state?: string }) => {
               keyword={keyword || ""}
               setOpen={setOpen}
               setActiveIndex={setActiveIndex}
+              isKeyboardNav={isKeyboardNav}
+              setIsKeyboardNav={setIsKeyboardNav}
             />
           </div>
         </div>

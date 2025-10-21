@@ -15,6 +15,8 @@ interface SearchDropdownProps {
   keyword: string;
   setOpen: (val: boolean) => void;
   setActiveIndex: (index: number) => void;
+  isKeyboardNav: boolean;
+  setIsKeyboardNav: (v: boolean) => void;
 }
 
 const SearchDropdown = ({
@@ -25,13 +27,18 @@ const SearchDropdown = ({
   keyword,
   setOpen,
   setActiveIndex,
+  isKeyboardNav,
+  setIsKeyboardNav,
 }: SearchDropdownProps) => {
   const dispatch = useDispatch();
 
   if (!open) return null;
 
   return (
-    <ul className="absolute left-0 right-0 top-12 z-20 bg-white border rounded-md shadow-md max-h-72 overflow-auto">
+    <ul
+      onMouseMove={() => setIsKeyboardNav(false)}
+      className="absolute left-0 right-0 top-12 z-20 bg-white border rounded-md shadow-md max-h-72 overflow-auto"
+    >
       {loading && <li className="px-4 py-2 text-sm text-gray-500">검색 중…</li>}
 
       {!loading && results.length === 0 && (
@@ -46,25 +53,39 @@ const SearchDropdown = ({
             key={`${item.name}-${idx}`}
             ref={(el) => {
               if (activeIndex === idx && el) {
-                const parent = el.parentElement; // ul
-                if (parent) {
-                  const parentHeight = parent.clientHeight;
-                  const itemTop = el.offsetTop;
-                  const itemHeight = el.offsetHeight;
+                const parent = el.parentElement;
+                if (!parent) return;
 
-                  // 현재 항목이 중앙 근처로 오도록 스크롤 조정
-                  parent.scrollTo({
-                    top: itemTop - parentHeight / 2 + itemHeight / 2,
-                    behavior: "smooth",
-                  });
+                const itemTop = el.offsetTop;
+                const itemBottom = itemTop + el.offsetHeight;
+                const viewTop = parent.scrollTop;
+                const viewBottom = viewTop + parent.clientHeight;
+
+                // 이미 보이는 영역이면 스크롤하지 않음
+                if (itemTop >= viewTop && itemBottom <= viewBottom) return;
+
+                // 새 항목이 화면 위로 벗어나면 바로 위로 이동 (빠르게)
+                if (itemTop < viewTop) {
+                  parent.scrollTo({ top: itemTop, behavior: "auto" });
+                  return;
                 }
+
+                // 새 항목이 아래로 벗어나면 부드럽게 이동
+                parent.scrollTo({
+                  top: itemTop - parent.clientHeight / 3,
+                  behavior: "smooth",
+                });
               }
             }}
-            className={`px-4 py-2 text-sm cursor-pointer hover:bg-gray-100 ${
-              activeIndex === idx ? "bg-gray-100" : ""
+            className={`px-4 py-2 text-sm cursor-pointer hover:bg-gray-50 ${
+              activeIndex === idx ? "bg-gray-50" : ""
             }`}
-            onMouseEnter={() => setActiveIndex(idx)}
-            onMouseLeave={() => setActiveIndex(-1)}
+            onMouseEnter={() => {
+              if (!isKeyboardNav) setActiveIndex(idx);
+            }}
+            onMouseLeave={() => {
+              if (!isKeyboardNav) setActiveIndex(-1);
+            }}
             onMouseDown={() => {
               dispatch(setKeyword(item.name));
               setOpen(false);
