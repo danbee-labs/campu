@@ -1,12 +1,4 @@
-import { RiMapPinLine } from "react-icons/ri";
-import { FaRegCalendarAlt } from "react-icons/fa";
-import { MdOutlinePersonOutline } from "react-icons/md";
-import { LuSearch } from "react-icons/lu";
-import SearchRegion from "@/components/@common/Search/SearchRegion";
-import { RegionList } from "@/components/@common/Search/RegionList";
 import { useEffect, useState } from "react";
-import { AiOutlineMinusCircle, AiOutlinePlusCircle } from "react-icons/ai";
-import { IoIosArrowDown } from "react-icons/io";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { RootState } from "@/app/store";
@@ -26,26 +18,31 @@ import {
   setStartDate as setCampingStartDate,
 } from "@/features/reservation/campingDateSlice";
 import { setHeadCount } from "@/features/reservation/HeadCountSlice";
+import SearchRegion from "@/components/@common/Search/SearchRegion";
+import { RegionList } from "@/components/@common/Search/RegionList";
 import Modal from "../@common/Modal/Modal";
 import CalendarSubmit from "../@common/Calendar/CalendarSubmit";
 import Calendar from "../@common/Calendar/Calendar";
+import SearchDropdown from "../@common/Search/SearchDropdown";
+import { AiOutlineMinusCircle, AiOutlinePlusCircle } from "react-icons/ai";
+import { IoIosArrowDown } from "react-icons/io";
 import { FaArrowRotateRight } from "react-icons/fa6";
+import { RiMapPinLine } from "react-icons/ri";
+import { FaRegCalendarAlt } from "react-icons/fa";
+import { MdOutlinePersonOutline } from "react-icons/md";
+import { LuSearch } from "react-icons/lu";
 
 const SearchBar = ({ state }: { state?: string }) => {
   const [numberOfPeople, setNumberOfPeople] = useState(2);
   const [scheduleModal, setScheduleModal] = useState<boolean>(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const searchBarState = useSelector((state: RootState) => state.searchBar);
-  const toggleScheduleModal = () => {
-    setScheduleModal(!scheduleModal); // 모달 토글
-    setLocalStartDate(dateStringToDate(startDate)); // 저장 안하고 닫으면 초기화
-    setLocalEndDate(dateStringToDate(endDate));
-  };
 
   const { startDate, endDate, keyword } = useSelector(
     (state: RootState) => state.searchBar
   );
+
+  const searchBarState = useSelector((state: RootState) => state.searchBar);
 
   const initialStartDate = dateStringToDate(startDate);
   const initialEndDate = dateStringToDate(endDate);
@@ -60,12 +57,13 @@ const SearchBar = ({ state }: { state?: string }) => {
   // 검색 결과 타입
   type CampingItem = { name: string; address: string };
 
+  // 검색 상태 관리
   const [results, setResults] = useState<CampingItem[]>([]);
-  const [open, setOpen] = useState(false); // 드롭다운 토글
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [activeIndex, setActiveIndex] = useState<number>(-1); // 키보드 ↑↓용
+  const [activeIndex, setActiveIndex] = useState<number>(-1);
 
-  console.log(typeof searchKeyword);
+  // 일정 초기화
   const resetCalendar = () => {
     setLocalStartDate(dateStringToDate(startDate));
     setLocalEndDate(dateStringToDate(endDate));
@@ -87,6 +85,7 @@ const SearchBar = ({ state }: { state?: string }) => {
     }
   };
 
+  // 키워드 입력
   const handleKeywordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { value } = e.target;
     setSearchKeyword(value);
@@ -99,16 +98,44 @@ const SearchBar = ({ state }: { state?: string }) => {
     }
   };
 
-  // form 태그를 사용하지않을 때 -> 키보드 "엔터" 감지
-  useEffect(() => {
-    window.addEventListener("keydown", handleKeyPress);
-    return () => {
-      window.removeEventListener("keydown", handleKeyPress);
-    };
-  }, []);
+  // Enter 키 감지
+  // useEffect(() => {
+  //   window.addEventListener("keydown", handleKeyPress);
+  //   return () => {
+  //     window.removeEventListener("keydown", handleKeyPress);
+  //   };
+  // }, []);
 
   const goToSearchPage = () => {
     navigate("/search");
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!open || results.length === 0) {
+      if (e.key === "Enter") {
+        goToSearchPage();
+      }
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev + 1) % results.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev - 1 + results.length) % results.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (activeIndex >= 0 && results[activeIndex]) {
+        const selected = results[activeIndex];
+        dispatch(setKeyword(selected.name));
+        setOpen(false);
+      } else {
+        goToSearchPage();
+      }
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
   };
 
   // keyword 변경 시 서버 요청 (디바운스)
@@ -123,10 +150,11 @@ const SearchBar = ({ state }: { state?: string }) => {
       return;
     }
 
-    setLoading(true);
+    const lowerKeyword = keyword.trim().toLowerCase();
 
     const timer = setTimeout(async () => {
       try {
+        setLoading(true);
         const res = await fetch("http://localhost:3005/api/input-performance", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -135,7 +163,27 @@ const SearchBar = ({ state }: { state?: string }) => {
         });
 
         const data: CampingItem[] = await res.json();
-        setResults(data);
+
+        setResults((prev) => {
+          // 이전 결과 중 여전히 keyword 포함되는 항목 유지
+          const stillValid = prev.filter(
+            (camp) =>
+              camp.name.toLowerCase().includes(lowerKeyword) ||
+              camp.address.toLowerCase().includes(lowerKeyword)
+          );
+
+          // 서버에서 받은 새 결과 중 중복되지 않은 것만 추가
+          const newOnes = data.filter(
+            (camp) =>
+              !stillValid.some(
+                (prevCamp) =>
+                  prevCamp.name === camp.name &&
+                  prevCamp.address === camp.address
+              )
+          );
+
+          return [...stillValid, ...newOnes];
+        });
         setOpen(true);
         setActiveIndex(-1);
       } catch (err) {
@@ -145,7 +193,7 @@ const SearchBar = ({ state }: { state?: string }) => {
         } else {
           console.error("알 수 없는 오류:", err);
         }
-        setResults([]);
+        // setResults([]);
         setOpen(false);
       } finally {
         setLoading(false);
@@ -169,6 +217,12 @@ const SearchBar = ({ state }: { state?: string }) => {
       dispatch(setCampingStartDate(formattedStartDate));
       dispatch(setCampingEndDate(formattedEndDate));
     }
+  };
+
+  const toggleScheduleModal = () => {
+    setScheduleModal(!scheduleModal); // 모달 토글
+    setLocalStartDate(dateStringToDate(startDate)); // 저장 안하고 닫으면 초기화
+    setLocalEndDate(dateStringToDate(endDate));
   };
 
   return (
@@ -225,15 +279,30 @@ const SearchBar = ({ state }: { state?: string }) => {
 
       {/* 검색어 입력 */}
       <div className="flex mt-2 items-center">
-        <div className="flex w-full items-center border bg-white rounded-md p-3 max-h-11">
-          <LuSearch />
-          <input
-            className="ml-2 w-full placeholder-black text-xs border-none outline-none focus:ring-0"
-            placeholder="키워드로 캠핑장을 검색해보세요"
-            value={keyword || ""}
-            onChange={handleKeywordChange}
-          ></input>
+        <div className="relative flex w-full items-center">
+          <div className="flex w-full items-center border bg-white rounded-md p-3 max-h-11">
+            <LuSearch />
+            <input
+              className="ml-2 w-full placeholder-black text-xs border-none outline-none focus:ring-0"
+              placeholder="키워드로 캠핑장을 검색해보세요"
+              value={keyword || ""}
+              onChange={handleKeywordChange}
+              onFocus={() => results.length > 0 && setOpen(true)}
+              onBlur={() => setTimeout(() => setOpen(false), 120)}
+              onKeyDown={handleKeyDown}
+            />
+            <SearchDropdown
+              open={open}
+              results={results}
+              loading={loading}
+              activeIndex={activeIndex}
+              keyword={keyword || ""}
+              setOpen={setOpen}
+              setActiveIndex={setActiveIndex}
+            />
+          </div>
         </div>
+
         {/* 검색버튼 */}
         {state === "main" && (
           <button
