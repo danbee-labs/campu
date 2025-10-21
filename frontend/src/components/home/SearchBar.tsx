@@ -57,6 +57,14 @@ const SearchBar = ({ state }: { state?: string }) => {
     keyword || null
   );
 
+  // 검색 결과 타입
+  type CampingItem = { name: string; address: string };
+
+  const [results, setResults] = useState<CampingItem[]>([]);
+  const [open, setOpen] = useState(false); // 드롭다운 토글
+  const [loading, setLoading] = useState(false);
+  const [activeIndex, setActiveIndex] = useState<number>(-1); // 키보드 ↑↓용
+
   console.log(typeof searchKeyword);
   const resetCalendar = () => {
     setLocalStartDate(dateStringToDate(startDate));
@@ -102,6 +110,54 @@ const SearchBar = ({ state }: { state?: string }) => {
   const goToSearchPage = () => {
     navigate("/search");
   };
+
+  // keyword 변경 시 서버 요청 (디바운스)
+  useEffect(() => {
+    const controller = new AbortController(); // 이전 요청을 중간에 취소할 수 있게 해주는 객체
+
+    // 입력이 없으면 목록 닫고 초기화
+    if (!keyword || !keyword.trim()) {
+      setResults([]);
+      setOpen(false);
+      setActiveIndex(-1);
+      return;
+    }
+
+    setLoading(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch("http://localhost:3005/api/input-performance", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ keyword }),
+          signal: controller.signal,
+        });
+
+        const data: CampingItem[] = await res.json();
+        setResults(data);
+        setOpen(true);
+        setActiveIndex(-1);
+      } catch (err) {
+        if (err instanceof Error) {
+          if (err.name === "AbortError") return;
+          console.error("검색 요청 실패:", err.message);
+        } else {
+          console.error("알 수 없는 오류:", err);
+        }
+        setResults([]);
+        setOpen(false);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+
+    // cleanup: keyword 바뀌면 이전 요청 취소
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [keyword]);
 
   // 일정 스토어에 저장
   const calendarSubmit = () => {
