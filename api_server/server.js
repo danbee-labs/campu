@@ -1,43 +1,50 @@
 import express from "express";
+import ORIGIN_CAMPING_DATA from './db/index.js';
+import { timer, basicSearch } from "./utils.js";
+import { addressTrie, nameTrie } from "./trieInstance.js";
 import cors from "cors";
-import fs from "fs";
+
 
 const app = express();
 const PORT = 3005;
 
 app.use(cors());
-app.use(express.json({ limit: "10kb" }));
+app.use(express.json({ limit: "10kb" })); 
 
 app.get("/api/ping", (req, res) => {
   return res.status(200).json({ success: true });
 });
 
-// 입력한 keyword로 JSON 검색
-app.post("/api/input-performance", (req, res) => {
+
+app.get('/api/camping_data', async (req, res) => {
+  // 여기서 성능 테스트용 데이터를 생성하거나 불러옴
+  const data = ORIGIN_CAMPING_DATA;
+  const slice = data.splice(0, 100);
+  return res.status(200).json({ success: true, data: slice });
+})
+
+app.post('/api/search', async (req, res) => {
   const { keyword } = req.body;
+  let nameResults = [];
+  let addressResults = [];
 
-  if (!keyword) {
-    return res.status(400).json({ message: "검색어가 없습니다." });
+
+
+  const fn1 = ( ) => {
+    nameResults = nameTrie.searchWord(keyword, 'name');
+    addressResults = addressTrie.searchWord(keyword, 'address');
   }
 
-  try {
-    // JSON 파일 읽기
-    const data = fs.readFileSync("./campings.json", "utf-8");
-    const campingList = JSON.parse(data);
-    const lowerKeyword = keyword.toLowerCase();
 
-    // keyword가 들어간 캠핑장만 필터링 (대소문자 구분 없이)
-    const filtered = campingList.filter(
-      (camp) =>
-        camp.name.toLowerCase().includes(lowerKeyword) ||
-        camp.address.toLowerCase().includes(lowerKeyword)
-    );
-
-    return res.status(200).json(filtered);
-  } catch (err) {
-    console.error("캠핑장 데이터 읽기 실패: ", err);
-    return res.status(500).json({ message: "서버 오류" });
+  const fn2 = ( ) => {
+    basicSearch(ORIGIN_CAMPING_DATA, 'name', keyword);
+    basicSearch(ORIGIN_CAMPING_DATA, 'address', keyword);
   }
+
+  const optTime = timer(fn1);
+  const basicTime = timer(fn2);
+
+  return res.status(200).json({ success: true, data: { name: nameResults, address: addressResults, optTime, basicTime } });
 });
 
 app.listen(PORT, () => {
