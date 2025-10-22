@@ -93,20 +93,6 @@ const SearchBar = ({ state }: { state?: string }) => {
     dispatch(setKeyword(value));
   };
 
-  // const handleKeyPress = (e: KeyboardEvent) => {
-  //   if (e.key === "Enter") {
-  //     goToSearchPage();
-  //   }
-  // };
-
-  // Enter 키 감지
-  // useEffect(() => {
-  //   window.addEventListener("keydown", handleKeyPress);
-  //   return () => {
-  //     window.removeEventListener("keydown", handleKeyPress);
-  //   };
-  // }, []);
-
   const goToSearchPage = () => {
     navigate("/search");
   };
@@ -159,39 +145,27 @@ const SearchBar = ({ state }: { state?: string }) => {
       return;
     }
 
-    const lowerKeyword = keyword.trim().toLowerCase();
-
     const timer = setTimeout(async () => {
       try {
         setLoading(true);
-        const res = await fetch("http://localhost:3005/api/input-performance", {
+        const res = await fetch("http://localhost:3005/api/search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ keyword }),
           signal: controller.signal,
         });
 
-        const data: CampingItem[] = await res.json();
+        type Info = {
+          name: string;
+          address: string;
+        };
 
-        setResults((prev) => {
-          // 이전 결과 중 여전히 keyword 포함되는 항목 유지
-          const stillValid = prev.filter(
-            (camp) =>
-              camp.name.toLowerCase().includes(lowerKeyword) ||
-              camp.address.toLowerCase().includes(lowerKeyword)
-          );
+        const { address, name }: { address: Array<Info>; name: Array<Info> } = (
+          await res.json()
+        ).data;
 
-          // 서버에서 받은 새 결과 중 중복되지 않은 것만 추가
-          const newOnes = data.filter(
-            (camp) =>
-              !stillValid.some(
-                (prevCamp) =>
-                  prevCamp.name === camp.name &&
-                  prevCamp.address === camp.address
-              )
-          );
-
-          return [...stillValid, ...newOnes];
+        setResults(() => {
+          return [...address, ...name];
         });
         setOpen(true);
         setActiveIndex(-1);
